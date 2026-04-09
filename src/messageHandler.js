@@ -2,6 +2,7 @@ const { processCommand } = require('./aiEngine');
 const userManager = require('./userManager');
 const scheduler = require('./scheduler');
 const { broadcastMessage } = require('./broadcast');
+const unreadHandler = require('./unreadHandler');
 require('dotenv').config();
 
 const OWNER_ID_WA = process.env.OWNER_NUMBER || "";
@@ -56,6 +57,33 @@ async function processMessage(text, sender, platform, replyFn, sock = null) {
             return;
         } catch (err) {
             return await replyFn(`❌ Failed to fetch groups: ${err.message}`);
+        }
+    }
+
+    // Unread Messages Command (WhatsApp Only)
+    if (cmdBody === 'unread' || cmdBody === 'list unread') {
+        if (platform !== 'whatsapp') return await replyFn("⚠️ This is only available on WhatsApp.");
+        const list = await unreadHandler.getUnreadList();
+        return await replyFn(list);
+    }
+
+    // Reply to Unread by Index
+    if (cmdBody.startsWith('reply to ')) {
+        // format: reply to 1: hello
+        const match = queryText.match(/reply to (\d+)[:\s]+(.*)/i);
+        if (match) {
+            const index = match[1];
+            const message = match[2];
+            const targetJid = unreadHandler.getJidByIndex(index);
+            
+            if (!targetJid) return await replyFn(`❌ Invalid index: ${index}. Use 'ai unread' to see valid numbers.`);
+            
+            try {
+                await sock.sendMessage(targetJid, { text: message });
+                return await replyFn(`✅ Replied to index ${index} (${targetJid})`);
+            } catch (err) {
+                return await replyFn(`❌ Failed to reply: ${err.message}`);
+            }
         }
     }
 
@@ -204,6 +232,24 @@ async function processMessage(text, sender, platform, replyFn, sock = null) {
                 logAction(platform, userId, sender, text, "success");
             } catch (err) {
                 await replyFn(`❌ Failed to send message: ${err.message}`);
+                logAction(platform, userId, sender, text, "error", err.message);
+            }
+        } else if (reply === "INTERNAL_UNREAD_LIST") {
+            const list = await unreadHandler.getUnreadList();
+            await replyFn(list);
+            logAction(platform, userId, sender, text, "success");
+        } else if (reply && reply.startsWith("INTERNAL_UNREAD_REPLY:")) {
+            const argStr = reply.replace("INTERNAL_UNREAD_REPLY:", "");
+            const args = JSON.parse(argStr);
+            try {
+                const targetJid = unreadHandler.getJidByIndex(args.index);
+                if (!targetJid) throw new Error(`Invalid index: ${args.index}`);
+                
+                await sock.sendMessage(targetJid, { text: args.message });
+                await replyFn(`✅ Replied to index ${args.index}`);
+                logAction(platform, userId, sender, text, "success");
+            } catch (err) {
+                await replyFn(`❌ Reply failed: ${err.message}`);
                 logAction(platform, userId, sender, text, "error", err.message);
             }
         } else {

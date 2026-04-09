@@ -105,6 +105,28 @@ If the user wants something normal, just reply naturally in the language they us
                     required: ["phone_number", "message"]
                 }
             }
+        },
+        {
+            type: "function",
+            function: {
+                name: "get_unread_messages",
+                description: "Fetch a list of all unread WhatsApp messages with index numbers."
+            }
+        },
+        {
+            type: "function",
+            function: {
+                name: "reply_to_unread",
+                description: "Reply to an unread message from the unread list using its index number.",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        index: { type: "string", description: "The index number from the unread list (e.g. '1')." },
+                        message: { type: "string", description: "The reply message content." }
+                    },
+                    required: ["index", "message"]
+                }
+            }
         }
     ];
 
@@ -144,6 +166,12 @@ If the user wants something normal, just reply naturally in the language they us
                 }
                 if (tool.function.name === 'send_whatsapp_message') {
                     return `INTERNAL_WHATSAPP_SEND:${tool.function.arguments}`;
+                }
+                if (tool.function.name === 'get_unread_messages') {
+                    return `INTERNAL_UNREAD_LIST`;
+                }
+                if (tool.function.name === 'reply_to_unread') {
+                    return `INTERNAL_UNREAD_REPLY:${tool.function.arguments}`;
                 }
             }
         }

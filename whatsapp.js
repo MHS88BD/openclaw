@@ -3,15 +3,22 @@
  * Fix: Removed forced logout logic, handled 440 conflict, and 401 stability.
  */
 
+const pino = require('pino');
+const qrcode = require('qrcode-terminal');
 const { 
     default: makeWASocket, 
     useMultiFileAuthState, 
     DisconnectReason, 
     fetchLatestBaileysVersion,
-    downloadMediaMessage 
+    downloadMediaMessage,
+    makeInMemoryStore
 } = require('@whiskeysockets/baileys');
-const pino = require('pino');
-const qrcode = require('qrcode-terminal');
+
+const store = makeInMemoryStore({ logger: pino().child({ level: 'silent', stream: 'store' }) });
+// Bind store to file if you want persistence, but for now in-memory is fine
+// store.readFromFile('./baileys_store_multi.json');
+// setInterval(() => { store.writeToFile('./baileys_store_multi.json') }, 10_000);
+
 const { processMessage } = require('./src/messageHandler');
 const { transcribeAudio } = require('./src/voice');
 const scheduler = require('./src/scheduler');
@@ -43,6 +50,8 @@ async function startBot() {
         defaultQueryTimeoutMs: 0,
         keepAliveIntervalMs: 15000
     });
+
+    store.bind(sock.ev);
 
     sock.ev.on('creds.update', saveCreds);
 
@@ -152,7 +161,7 @@ async function startBot() {
 }
 
 // Compatibility Export
-module.exports = { connectToWhatsApp: startBot };
+module.exports = { connectToWhatsApp: startBot, store };
 
 if (require.main === module) {
     startBot();
