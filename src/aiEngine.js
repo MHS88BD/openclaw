@@ -35,8 +35,10 @@ You can perform actions by outputting system function calls.
 If the user wants you to do finance accounting from SMS, call 'process_finance'.
 If the user wants web research, call 'research_web'.
 If the user wants you to schedule a reminder or action, call 'schedule_action'.
-IMPORTANT: When scheduling, use the Current Time provided above to calculate the 'target_time'.
+IMPORTANT: When scheduling or sending messages, use the Current Time provided above to calculate the 'target_time'.
 Always return the 'target_time' in 'YYYY-MM-DD HH:mm' format.
+You ARE allowed to send messages to groups if the user provides a Group ID ending in '@g.us'. 
+Treat strings ending in '@g.us' as valid destinations for 'phone_number' or 'target_phone'.
 
 If the user wants something normal, just reply naturally in the language they used (e.g. Bengali or English).`;
 
@@ -93,11 +95,11 @@ If the user wants something normal, just reply naturally in the language they us
             type: "function",
             function: {
                 name: "send_whatsapp_message",
-                description: "Send a WhatsApp message directly to a specific phone number.",
+                description: "Send a WhatsApp message directly to a specific phone number or group ID.",
                 parameters: {
                     type: "object",
                     properties: {
-                        phone_number: { type: "string", description: "The target phone number with country code. E.g. '8801700000000'." },
+                        phone_number: { type: "string", description: "The target phone number (e.g. '8801700000000') OR a Group ID (e.g. '12345@g.us')." },
                         message: { type: "string", description: "The message content to send." }
                     },
                     required: ["phone_number", "message"]
