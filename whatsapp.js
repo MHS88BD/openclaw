@@ -100,9 +100,20 @@ async function startBot() {
             const isFromMe = msg.key.fromMe;
             const ownerJid = process.env.OWNER_NUMBER;
 
+            // Bot loop prevention: Messages sent by Baileys usually start with BAE5 or 3EB0.
+            // If the message is fromMe AND it was sent by this bot instance, ignore it!
+            if (isFromMe && msg.key.id && (msg.key.id.startsWith('BAE5') || msg.key.id.startsWith('3EB0') || msg.key.id.length === 16)) {
+                return;
+            }
+
             let text = msg.message.conversation || msg.message.extendedTextMessage?.text || "";
 
             console.log(`[WA PRE-FILTER] Original: ${originalSender}, parsedSender: ${sender}, owner: ${ownerJid}, isFromMe: ${isFromMe}, text: ${text}`);
+
+            // Guaranteed bot loop prevention
+            if (text.startsWith('\u200B')) {
+                return;
+            }
 
             const ownerLid = '107168208580730@lid';
             // Strict Filter: Only allow self messages if they match the exact OWNER_NUMBER JID or LID
@@ -129,7 +140,7 @@ async function startBot() {
                 return;
             }
 
-            const reply = async (txt) => await sock.sendMessage(sender, { text: txt }, { quoted: msg });
+            const reply = async (txt) => await sock.sendMessage(sender, { text: '\u200B' + txt }, { quoted: msg });
             await processMessage(text, sender, 'whatsapp', reply, sock);
         } catch (err) {
             console.error("Handler Error:", err.message);
