@@ -144,8 +144,16 @@ async function processMessage(text, sender, platform, replyFn, sock = null) {
             const argStr = reply.replace("INTERNAL_SCHEDULE:", "");
             const args = JSON.parse(argStr);
             try {
-                const job = scheduler.schedule(sender, args.target_time, args.message, platform);
-                await replyFn(`✅ Scheduled reminder for ${formatBST(job.time)}`);
+                let targetJid = sender;
+                if (args.target_phone) {
+                    let phone = args.target_phone.replace(/\D/g, '');
+                    if (phone.length >= 10) {
+                        targetJid = `${phone}@s.whatsapp.net`;
+                    }
+                }
+
+                const job = scheduler.schedule(targetJid, args.target_time, args.message, platform);
+                await replyFn(`✅ Scheduled reminder for ${formatBST(job.time)} to be sent to ${targetJid === sender ? 'you' : targetJid}`);
                 logAction(platform, userId, sender, text, "success");
             } catch (err) {
                 await replyFn(`❌ I couldn't schedule the reminder: ${err.message}`);

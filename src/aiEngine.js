@@ -77,12 +77,13 @@ If the user wants something normal, just reply naturally in the language they us
             type: "function",
             function: {
                 name: "schedule_action",
-                description: "Schedule a reminder or a specific message to be sent back to the user at a particular time.",
+                description: "Schedule a reminder for the sender or a specific message to be sent to someone else at a particular time.",
                 parameters: {
                     type: "object",
                     properties: {
                         target_time: { type: "string", description: "The time to schedule the action. Must be in the format 'YYYY-MM-DD HH:mm'." },
-                        message: { type: "string", description: "The reminder text or task to send to the user." }
+                        message: { type: "string", description: "The message content to be sent." },
+                        target_phone: { type: "string", description: "Optional: The phone number of the person to receive the message (if not the sender). E.g. '8801700000000'." }
                     },
                     required: ["target_time", "message"]
                 }
