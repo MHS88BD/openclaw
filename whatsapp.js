@@ -1,27 +1,19 @@
-/**
- * PRODUCTION-GRADE WHATSAPP BOT (BAILEYS)
- * Fix: Removed forced logout logic, handled 440 conflict, and 401 stability.
- */
-
 const pino = require('pino');
 const qrcode = require('qrcode-terminal');
+const Baileys = require('@whiskeysockets/baileys');
 const { 
     default: makeWASocket, 
     useMultiFileAuthState, 
     DisconnectReason, 
     fetchLatestBaileysVersion,
-    downloadMediaMessage,
-    makeInMemoryStore
-} = require('@whiskeysockets/baileys');
-
-const store = makeInMemoryStore({ logger: pino().child({ level: 'silent', stream: 'store' }) });
-// Bind store to file if you want persistence, but for now in-memory is fine
-// store.readFromFile('./baileys_store_multi.json');
-// setInterval(() => { store.writeToFile('./baileys_store_multi.json') }, 10_000);
+    downloadMediaMessage 
+} = Baileys;
 
 const { processMessage } = require('./src/messageHandler');
 const { transcribeAudio } = require('./src/voice');
 const scheduler = require('./src/scheduler');
+const unreadHandler = require('./src/unreadHandler');
+
 
 let sock = null;
 let reconnectAttempts = 0;
@@ -51,9 +43,15 @@ async function startBot() {
         keepAliveIntervalMs: 15000
     });
 
-    store.bind(sock.ev);
-
     sock.ev.on('creds.update', saveCreds);
+
+    // Manual Tracking for Unread Messages
+    sock.ev.on('chats.upsert', chats => chats.forEach(c => unreadHandler.updateChat(c)));
+    sock.ev.on('chats.update', updates => updates.forEach(u => unreadHandler.updateChat(u)));
+    sock.ev.on('messages.upsert', m => {
+        const msg = m.messages[0];
+        if (!msg.key.fromMe) unreadHandler.addMessage(msg, false);
+    });
 
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
@@ -161,7 +159,7 @@ async function startBot() {
 }
 
 // Compatibility Export
-module.exports = { connectToWhatsApp: startBot, store };
+module.exports = { connectToWhatsApp: startBot };
 
 if (require.main === module) {
     startBot();

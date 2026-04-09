@@ -31,7 +31,7 @@ class UserManager {
         const strId = String(platformId);
 
         let user = this.users.find(u => platform === 'telegram' ? (u.telegram_id === strId) : (u.whatsapp_id === strId));
-        
+
         if (!user) {
             // New user, create identity system
             user = {
@@ -51,31 +51,31 @@ class UserManager {
     linkUser(userId, platform, platformId) {
         if (!userId || !platform || !platformId) return null;
         const strId = String(platformId);
-        
+
         const user = this.users.find(u => u.user_id === userId);
         if (user) {
             // Safety: Ensure we don't cause duplicate users by overwriting an existing ID that was already attached
             // If they are linking, we could optionally consolidate their data, but for now we just link pointer
             if (platform === 'telegram') user.telegram_id = strId;
             if (platform === 'whatsapp') user.whatsapp_id = strId;
-            
+
             // Cleanup duplicate temporary user if they were created before linking
             const duplicateIndex = this.users.findIndex(u => u.user_id !== userId && (platform === 'telegram' ? u.telegram_id === strId : u.whatsapp_id === strId));
             if (duplicateIndex !== -1) {
                 // If they have spend data, we might lose it, but safety constraint: No duplicate users
                 this.users.splice(duplicateIndex, 1);
             }
-            
+
             this.saveData();
             return user;
         }
         return null;
     }
-    
+
     getUser(userId) {
         return this.users.find(u => u.user_id === userId);
     }
-    
+
     updateUser(userId, userObj) {
         const index = this.users.findIndex(u => u.user_id === userId);
         if (index !== -1) {
