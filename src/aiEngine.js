@@ -22,12 +22,22 @@ async function askGemini(prompt) {
 }
 
 async function askOpenAI(query) {
+    // Get current time in Bangladesh (BST - UTC+6)
+    const now = new Date();
+    const bstTime = new Date(now.getTime() + (6 * 60 * 60 * 1000));
+    const bstString = bstTime.toISOString().replace('T', ' ').substring(0, 16);
+
     const systemPrompt = `You are Antigravity AI Command Center.
 You act as a personal automation assistant. 
+Current Time (Bangladesh): ${bstString} (BST)
+
 You can perform actions by outputting system function calls.
 If the user wants you to do finance accounting from SMS, call 'process_finance'.
 If the user wants web research, call 'research_web'.
 If the user wants you to schedule a reminder or action, call 'schedule_action'.
+IMPORTANT: When scheduling, use the Current Time provided above to calculate the 'target_time'.
+Always return the 'target_time' in 'YYYY-MM-DD HH:mm' format.
+
 If the user wants something normal, just reply naturally in the language they used (e.g. Bengali or English).`;
 
     const tools = [

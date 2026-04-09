@@ -24,16 +24,19 @@ class Scheduler {
     }
 
     schedule(jid, timeStr, message) {
-        // timeStr format: "YYYY-MM-DD HH:mm" or just "HH:mm" (assumes today)
-        let targetTime = new Date(timeStr);
-        if (isNaN(targetTime.getTime())) {
-            // Try assuming today if only time is provided
-            const today = new Date().toISOString().split('T')[0];
-            targetTime = new Date(`${today} ${timeStr}`);
+        // timeStr format from AI: "YYYY-MM-DD HH:mm"
+        // Force BST (+06:00) parsing
+        let fullTimeStr = timeStr.includes('T') ? timeStr : timeStr.replace(' ', 'T');
+        if (!fullTimeStr.includes('+')) {
+            fullTimeStr += '+06:00';
         }
 
-        if (isNaN(targetTime.getTime()) || targetTime < new Date()) {
-            throw new Error("Invalid or past time format. Use YYYY-MM-DD HH:mm");
+        let targetTime = new Date(fullTimeStr);
+        const now = new Date();
+
+        if (isNaN(targetTime.getTime()) || targetTime < now) {
+            console.error(`[Scheduler] Invalid time: ${fullTimeStr} (Parsed as: ${targetTime.toISOString()}) vs Now: ${now.toISOString()}`);
+            throw new Error("Invalid or past time format. Please try again with a future time.");
         }
 
         const job = {

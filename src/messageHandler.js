@@ -66,7 +66,7 @@ async function processMessage(text, sender, platform, replyFn, sock = null) {
                 
                 try {
                     const job = scheduler.schedule(sender, timeStr, message);
-                    await replyFn(`✅ Scheduled for ${new Date(job.time).toLocaleString()}\nTarget: ${sender}`);
+                    await replyFn(`✅ Scheduled for ${formatBST(job.time)}\nTarget: ${sender}`);
                     logAction(platform, userId, sender, text, "success");
                 } catch (err) {
                     await replyFn(`❌ Scheduling failed: ${err.message}`);
@@ -145,7 +145,7 @@ async function processMessage(text, sender, platform, replyFn, sock = null) {
             const args = JSON.parse(argStr);
             try {
                 const job = scheduler.schedule(sender, args.target_time, args.message);
-                await replyFn(`✅ Scheduled reminder for ${new Date(job.time).toLocaleString()}`);
+                await replyFn(`✅ Scheduled reminder for ${formatBST(job.time)}`);
                 logAction(platform, userId, sender, text, "success");
             } catch (err) {
                 await replyFn(`❌ I couldn't schedule the reminder: ${err.message}`);
@@ -172,6 +172,13 @@ function logAction(platform, user_id, platform_id, message, status, error = null
         status,
         error
     }));
+}
+
+function formatBST(timestamp) {
+    const d = new Date(timestamp);
+    // Add 6 hours to UTC to get BST
+    const bst = new Date(d.getTime() + (6 * 60 * 60 * 1000));
+    return bst.toISOString().replace('T', ' ').substring(0, 16) + " BST";
 }
 
 module.exports = { processMessage };
