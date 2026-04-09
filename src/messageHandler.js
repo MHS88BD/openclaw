@@ -44,6 +44,21 @@ async function processMessage(text, sender, platform, replyFn, sock = null) {
         return await replyFn(`🆔 Your ID on ${platform.toUpperCase()}: \`${sender}\``);
     }
 
+    // List Groups Command (WhatsApp Only)
+    if (cmdBody === 'groups' || cmdBody === 'list groups') {
+        if (platform !== 'whatsapp' || !sock) {
+            return await replyFn("⚠️ This command is only available on WhatsApp.");
+        }
+        try {
+            const groups = await sock.groupFetchAllParticipating();
+            const groupList = Object.values(groups).map(g => `- *${g.subject}*\n  ID: \`${g.id}\``).join('\n\n');
+            await replyFn(`🏘️ *Your WhatsApp Groups:* \n\n${groupList || "No groups found."}`);
+            return;
+        } catch (err) {
+            return await replyFn(`❌ Failed to fetch groups: ${err.message}`);
+        }
+    }
+
     // STRICT OWNER CONTROL
     if (!isOwner) {
         console.log(`[Security] Ignoring command from non-owner: ${sender}`);
@@ -146,9 +161,14 @@ async function processMessage(text, sender, platform, replyFn, sock = null) {
             try {
                 let targetJid = sender;
                 if (args.target_phone) {
-                    let phone = args.target_phone.replace(/\D/g, '');
-                    if (phone.length >= 10) {
-                        targetJid = `${phone}@s.whatsapp.net`;
+                    let targetAddr = args.target_phone.trim();
+                    if (targetAddr.endsWith('@g.us')) {
+                        targetJid = targetAddr;
+                    } else {
+                        let phone = targetAddr.replace(/\D/g, '');
+                        if (phone.length >= 10) {
+                            targetJid = `${phone}@s.whatsapp.net`;
+                        }
                     }
                 }
 
@@ -167,13 +187,20 @@ async function processMessage(text, sender, platform, replyFn, sock = null) {
                     throw new Error("Direct WhatsApp sending is only available through the WhatsApp bot.");
                 }
                 
-                // Format JID
-                let phone = args.phone_number.replace(/\D/g, ''); // Remove non-digits
-                if (phone.length < 10) throw new Error("Invalid phone number.");
-                const jid = `${phone}@s.whatsapp.net`;
+                // Intelligent JID detection
+                let targetAddr = args.phone_number.trim();
+                let jid = "";
+                
+                if (targetAddr.endsWith('@g.us')) {
+                    jid = targetAddr;
+                } else {
+                    let phone = targetAddr.replace(/\D/g, ''); 
+                    if (phone.length < 10) throw new Error("Invalid phone number format.");
+                    jid = `${phone}@s.whatsapp.net`;
+                }
                 
                 await sock.sendMessage(jid, { text: args.message });
-                await replyFn(`✅ Message sent to ${phone}`);
+                await replyFn(`✅ Message sent to: ${jid}`);
                 logAction(platform, userId, sender, text, "success");
             } catch (err) {
                 await replyFn(`❌ Failed to send message: ${err.message}`);
