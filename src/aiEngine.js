@@ -81,10 +81,25 @@ If the user wants something normal, just reply naturally in the language they us
                 parameters: {
                     type: "object",
                     properties: {
-                        target_time: { type: "string", description: "The time to schedule the action. Must be in the format 'YYYY-MM-DD HH:mm'. For example, if it's in 10 minutes, calculate the new time based on the user request." },
+                        target_time: { type: "string", description: "The time to schedule the action. Must be in the format 'YYYY-MM-DD HH:mm'." },
                         message: { type: "string", description: "The reminder text or task to send to the user." }
                     },
                     required: ["target_time", "message"]
+                }
+            }
+        },
+        {
+            type: "function",
+            function: {
+                name: "send_whatsapp_message",
+                description: "Send a WhatsApp message directly to a specific phone number.",
+                parameters: {
+                    type: "object",
+                    properties: {
+                        phone_number: { type: "string", description: "The target phone number with country code. E.g. '8801700000000'." },
+                        message: { type: "string", description: "The message content to send." }
+                    },
+                    required: ["phone_number", "message"]
                 }
             }
         }
@@ -123,6 +138,9 @@ If the user wants something normal, just reply naturally in the language they us
                 }
                 if (tool.function.name === 'schedule_action') {
                     return `INTERNAL_SCHEDULE:${tool.function.arguments}`; // We will parse this in messageHandler.js
+                }
+                if (tool.function.name === 'send_whatsapp_message') {
+                    return `INTERNAL_WHATSAPP_SEND:${tool.function.arguments}`;
                 }
             }
         }

@@ -151,6 +151,26 @@ async function processMessage(text, sender, platform, replyFn, sock = null) {
                 await replyFn(`❌ I couldn't schedule the reminder: ${err.message}`);
                 logAction(platform, userId, sender, text, "error", err.message);
             }
+        } else if (reply && reply.startsWith("INTERNAL_WHATSAPP_SEND:")) {
+            const argStr = reply.replace("INTERNAL_WHATSAPP_SEND:", "");
+            const args = JSON.parse(argStr);
+            try {
+                if (platform !== 'whatsapp' || !sock) {
+                    throw new Error("Direct WhatsApp sending is only available through the WhatsApp bot.");
+                }
+                
+                // Format JID
+                let phone = args.phone_number.replace(/\D/g, ''); // Remove non-digits
+                if (phone.length < 10) throw new Error("Invalid phone number.");
+                const jid = `${phone}@s.whatsapp.net`;
+                
+                await sock.sendMessage(jid, { text: args.message });
+                await replyFn(`✅ Message sent to ${phone}`);
+                logAction(platform, userId, sender, text, "success");
+            } catch (err) {
+                await replyFn(`❌ Failed to send message: ${err.message}`);
+                logAction(platform, userId, sender, text, "error", err.message);
+            }
         } else {
             await replyFn(reply);
             logAction(platform, userId, sender, text, "success");
