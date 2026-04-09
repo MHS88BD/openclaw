@@ -1,0 +1,14 @@
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    restart: always
+    ports:
+      - "127.0.0.1:5678:5678"
+    volumes:
+      - /root/n8n/.n8n:/home/node/.n8n
+    environment:
+      - WEBHOOK_URL=https://automation.dupno.com/
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=https
+      - NODE_ENV=production

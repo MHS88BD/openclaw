@@ -1,0 +1,19 @@
+{
+  "name": "ai-bot",
+  "version": "1.0.0",
+  "description": "Antigravity AI Agent Communication Bot",
+  "main": "bot.js",
+  "scripts": {
+    "start": "xvfb-run node bot.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "latest",
+    "pino": "^9.0.0",
+    "telegraf": "^4.16.3",
+    "openai": "^4.52.0",
+    "dotenv": "^16.4.5",
+    "axios": "^1.7.2",
+    "qrcode-terminal": "^0.12.0",
+    "@google/generative-ai": "latest"
+  }
+}

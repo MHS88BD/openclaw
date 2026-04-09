@@ -1,0 +1,12 @@
+node_modules/
+.env
+auth/
+sessions/
+logs/
+*.log
+scratch/
+.DS_Store
+deploy_bot.sh
+push_whatsapp.sh
+*.exp
+*.sh
