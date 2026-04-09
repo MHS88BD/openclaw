@@ -65,7 +65,7 @@ async function processMessage(text, sender, platform, replyFn, sock = null) {
                 const message = parts.slice(3).join(' ');
                 
                 try {
-                    const job = scheduler.schedule(sender, timeStr, message);
+                    const job = scheduler.schedule(sender, timeStr, message, platform);
                     await replyFn(`✅ Scheduled for ${formatBST(job.time)}\nTarget: ${sender}`);
                     logAction(platform, userId, sender, text, "success");
                 } catch (err) {
@@ -144,7 +144,7 @@ async function processMessage(text, sender, platform, replyFn, sock = null) {
             const argStr = reply.replace("INTERNAL_SCHEDULE:", "");
             const args = JSON.parse(argStr);
             try {
-                const job = scheduler.schedule(sender, args.target_time, args.message);
+                const job = scheduler.schedule(sender, args.target_time, args.message, platform);
                 await replyFn(`✅ Scheduled reminder for ${formatBST(job.time)}`);
                 logAction(platform, userId, sender, text, "success");
             } catch (err) {

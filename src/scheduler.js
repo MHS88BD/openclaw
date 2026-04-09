@@ -23,7 +23,7 @@ class Scheduler {
         fs.writeFileSync(JOBS_PATH, JSON.stringify(this.jobs, null, 2));
     }
 
-    schedule(jid, timeStr, message) {
+    schedule(jid, timeStr, message, platform) {
         // timeStr format from AI: "YYYY-MM-DD HH:mm"
         // Force BST (+06:00) parsing
         let fullTimeStr = timeStr.includes('T') ? timeStr : timeStr.replace(' ', 'T');
@@ -42,6 +42,7 @@ class Scheduler {
         const job = {
             id: Date.now().toString(),
             jid,
+            platform, // Store platform
             time: targetTime.getTime(),
             message,
             status: 'pending'
@@ -52,15 +53,27 @@ class Scheduler {
         return job;
     }
 
-    async startWorker(sock) {
+    async startWorker(waSock, tgBot) {
+        if (waSock) this.waSock = waSock;
+        if (tgBot) this.tgBot = tgBot;
+
+        if (this.workerStarted) return;
+        this.workerStarted = true;
+
         setInterval(async () => {
             const now = Date.now();
             const pendingJobs = this.jobs.filter(j => j.status === 'pending' && j.time <= now);
 
             for (const job of pendingJobs) {
                 try {
-                    console.log(`[Scheduler] Sending job ${job.id} to ${job.jid}`);
-                    await sock.sendMessage(job.jid, { text: job.message });
+                    if (job.platform === 'telegram' && this.tgBot) {
+                        await this.tgBot.telegram.sendMessage(job.jid, job.message);
+                    } else if (this.waSock) {
+                        await this.waSock.sendMessage(job.jid, { text: job.message });
+                    } else {
+                        throw new Error("No active socket for platform: " + job.platform);
+                    }
+
                     job.status = 'completed';
                     job.sentAt = new Date().toISOString();
                 } catch (error) {
@@ -73,7 +86,7 @@ class Scheduler {
             if (pendingJobs.length > 0) {
                 this.saveJobs();
             }
-        }, 60000); // Check every minute
+        }, 30000); // Check every 30 seconds for better precision
     }
 }
 

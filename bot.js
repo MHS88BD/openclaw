@@ -41,6 +41,8 @@ async function startSystem() {
     try {
         await telegramBot.launch();
         console.log('Telegram Bot is active!');
+        const scheduler = require('./src/scheduler');
+        scheduler.startWorker(null, telegramBot);
     } catch (error) {
         console.error("Error starting Telegram bot:", error);
     }
@@ -57,3 +59,4 @@ process.once('SIGTERM', () => {
     telegramBot.stop('SIGTERM');
     process.exit(0);
 });
+module.exports = { telegramBot };

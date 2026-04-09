@@ -57,7 +57,10 @@ async function startBot() {
         if (connection === 'open') {
             console.log('✅ WhatsApp Connected');
             reconnectAttempts = 0;
-            scheduler.startWorker(sock);
+            
+            // Require bot instance dynamically to avoid circular dependencies if any
+            const { telegramBot } = require('./bot');
+            scheduler.startWorker(sock, telegramBot);
         }
 
         if (connection === 'close') {
