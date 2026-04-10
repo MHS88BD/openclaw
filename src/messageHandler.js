@@ -3,20 +3,27 @@ const userManager = require('./userManager');
 const scheduler = require('./scheduler');
 const { broadcastMessage } = require('./broadcast');
 const unreadHandler = require('./unreadHandler');
+const { getGroupMembers } = require('./groupUtils');
 require('dotenv').config();
 
 const OWNER_ID_WA = process.env.OWNER_NUMBER || "";
 const OWNER_ID_TG = process.env.OWNER_TELEGRAM_ID || "";
 
-async function processMessage(text, sender, platform, replyFn, sock = null) {
+async function processMessage(text, sender, platform, replyFn, sock = null, author = null) {
     if (!text) return;
 
-    const ownerPhone = process.env.OWNER_NUMBER;
+    const ownerPhone = (process.env.OWNER_NUMBER || "").trim();
     const ownerLid = '107168208580730@lid';
     
+    // Normalize JIDs for comparison
+    const checkId = (platform === 'whatsapp' && author) ? author : sender;
+    const normalizedSender = checkId.split(':')[0].split('@')[0];
+    const normalizedOwner = ownerPhone.split('@')[0];
+    const normalizedOwnerLid = ownerLid.split('@')[0];
+
     let isOwner = false;
     if (platform === 'whatsapp') {
-        isOwner = (sender === ownerPhone || sender === ownerLid);
+        isOwner = (normalizedSender === normalizedOwner || normalizedSender === normalizedOwnerLid);
     } else {
         isOwner = (String(sender) === String(process.env.OWNER_TELEGRAM_ID));
     }
@@ -57,6 +64,62 @@ async function processMessage(text, sender, platform, replyFn, sock = null) {
             return;
         } catch (err) {
             return await replyFn(`❌ Failed to fetch groups: ${err.message}`);
+        }
+    }
+
+    // NEW: Group Members Extract Command (WhatsApp Only)
+    const isMembersCmd = cmdBody.startsWith('members') || 
+                         cmdBody === 'এই গ্রুপের সব নাম্বার দাও' || 
+                         cmdBody.includes('members of this group');
+
+    if (isMembersCmd && platform === 'whatsapp' && sock) {
+        if (!isOwner) return; // Silent ignore for others
+
+        let targetJid = "";
+        
+        // 1. Check if ID is provided: ai members 120363041234567@g.us
+        const jidMatch = queryText.match(/[0-9a-zA-Z-]+@g\.us/);
+        if (jidMatch) {
+            targetJid = jidMatch[0];
+        } 
+        // 2. Check if "this group" or Bengali command in a group chat
+        else if (sender.endsWith('@g.us')) {
+            targetJid = sender;
+        }
+
+        if (!targetJid) {
+            return await replyFn("❌ Please provide a Group ID or use this command inside a group.");
+        }
+
+        try {
+            const result = await getGroupMembers(sock, targetJid);
+            if (result.success) {
+                await replyFn(result.text);
+                logAction(platform, sender, sender, text, "group_members_extract", { group: targetJid, count: result.count });
+            } else {
+                await replyFn(`❌ ${result.error}`);
+            }
+            return;
+        } catch (err) {
+            return await replyFn(`❌ Unable to fetch members: ${err.message}`);
+        }
+    }
+
+    // NEW: ID Lookup Command (WhatsApp Only)
+    if (cmdBody.startsWith('lookup ') && platform === 'whatsapp' && sock) {
+        if (!isOwner) return;
+        const targetId = cmdBody.replace('lookup ', '').trim();
+        try {
+            const [result] = await sock.onWhatsApp(targetId);
+            if (result && result.exists) {
+                await replyFn(`✅ *Match Found!*\n\n- JID: \`${result.jid}\`\n- Exists: Yes\n\n_Note: If the JID starts with digits followed by @s.whatsapp.net, those digits are the phone number._`);
+            } else {
+                await replyFn(`❌ No WhatsApp account found for ID: \`${targetId}\``);
+            }
+            logAction(platform, sender, sender, text, "id_lookup", { targetId });
+            return;
+        } catch (err) {
+            return await replyFn(`❌ Lookup failed: ${err.message}`);
         }
     }
 
