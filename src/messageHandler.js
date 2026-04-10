@@ -1,9 +1,12 @@
+const fs = require('fs');
+const path = require('path');
 const { processCommand } = require('./aiEngine');
 const userManager = require('./userManager');
 const scheduler = require('./scheduler');
 const { broadcastMessage } = require('./broadcast');
 const unreadHandler = require('./unreadHandler');
-const { getGroupMembers } = require('./groupUtils');
+const { getGroupMembers, broadcastToGroup } = require('./groupUtils');
+const autoReplyManager = require('./autoReplyManager');
 require('dotenv').config();
 
 const OWNER_ID_WA = process.env.OWNER_NUMBER || "";
@@ -14,6 +17,16 @@ async function processMessage(text, sender, platform, replyFn, sock = null, auth
 
     const ownerPhone = (process.env.OWNER_NUMBER || "").trim();
     const ownerLid = '107168208580730@lid';
+    const ownerJid = ownerPhone.includes('@') ? ownerPhone : `${ownerPhone}@s.whatsapp.net`;
+
+    // Stealth Reply: Helper to send sensitive info only to owner's private chat
+    const privateReply = async (txt) => {
+        if (platform === 'whatsapp' && sock) {
+            await sock.sendMessage(ownerJid, { text: '🕵️ *Stealth Feedback*\n' + txt });
+        } else {
+            await replyFn(txt);
+        }
+    };
     
     // Normalize JIDs for comparison
     const checkId = (platform === 'whatsapp' && author) ? author : sender;
@@ -21,16 +34,13 @@ async function processMessage(text, sender, platform, replyFn, sock = null, auth
     const normalizedOwner = ownerPhone.split('@')[0];
     const normalizedOwnerLid = ownerLid.split('@')[0];
 
-    let isOwner = false;
-    if (platform === 'whatsapp') {
-        isOwner = (normalizedSender === normalizedOwner || normalizedSender === normalizedOwnerLid);
-    } else {
-        isOwner = (String(sender) === String(process.env.OWNER_TELEGRAM_ID));
-    }
-    
-    let lowerBody = text.toLowerCase();
+    const isAutoReply = autoReplyManager.isAutoReplyEnabled(sender);
+    const isOwner = (platform === 'whatsapp') ? (normalizedSender === normalizedOwner || normalizedSender === normalizedOwnerLid) : (sender.toString() === OWNER_ID_TG);
+
+    if (!isOwner && !text.toLowerCase().startsWith('ai') && !isAutoReply) return;
     
     // Command Handling
+    let lowerBody = text.toLowerCase();
     let isAiCommand = lowerBody.startsWith('ai ') || lowerBody === 'ai';
 
     // WhatsApp requires 'ai' prefix ONLY IF it's not a direct private message to itself.
@@ -123,7 +133,123 @@ async function processMessage(text, sender, platform, replyFn, sock = null, auth
         }
     }
 
-    // Unread Messages Command (WhatsApp Only)
+    // NEW: Broadcast to Group Members (WhatsApp Only)
+    // Command: ai broadcast <jid> "Hello {name}" --s 0 --c 10
+    if (cmdBody.startsWith('broadcast ') && platform === 'whatsapp' && sock) {
+        if (!isOwner) return;
+
+        try {
+            const jidMatch = cmdBody.match(/[0-9a-zA-Z-]+@g\.us/);
+            if (!jidMatch) return await replyFn("⚠️ Group JID not found in command.");
+            const groupJid = jidMatch[0];
+
+            let template = "";
+            const msgMatch = cmdBody.match(/"([^"]+)"/);
+            if (msgMatch) template = msgMatch[1];
+            else {
+                // If no quotes, take rest of the string after ID as message
+                template = cmdBody.replace(`broadcast ${groupJid}`, '').replace(/--s \d+/, '').replace(/--c \d+/, '').trim();
+            }
+
+            if (!template) return await replyFn("⚠️ Message template not found. Use quotes: `ai broadcast <jid> \"msg\"`.");
+
+            const startMatch = cmdBody.match(/--s (\d+)/);
+            const countMatch = cmdBody.match(/--c (\d+)/);
+            const start = startMatch ? parseInt(startMatch[1]) : 0;
+            const count = countMatch ? parseInt(countMatch[1]) : 10;
+
+            logAction(platform, sender, sender, text, "broadcast_start", { groupJid, start, count });
+            await broadcastToGroup(sock, groupJid, template, start, count, replyFn);
+            return;
+        } catch (err) {
+            return await replyFn(`❌ Broadcast failed: ${err.message}`);
+        }
+    }
+
+    // NEW: Send Direct Message/PM via ID (WhatsApp Only)
+    // Command: ai send <id> <message>
+    if (cmdBody.startsWith('send ') && platform === 'whatsapp' && sock) {
+        if (!isOwner) return;
+        
+        const content = cmdBody.replace('send ', '').trim();
+        const firstSpace = content.indexOf(' ');
+        if (firstSpace === -1) return await replyFn("⚠️ Usage: `ai send <id> <message>`");
+        
+        const targetId = content.substring(0, firstSpace).trim();
+        const message = content.substring(firstSpace).trim();
+        
+        // Determine full JID (Handle @lid or @s.whatsapp.net)
+        let fullJid = targetId;
+        if (!fullJid.includes('@')) {
+            if (targetId.length > 15) fullJid = `${targetId}@lid`;
+            else fullJid = `${targetId}@s.whatsapp.net`;
+        }
+        
+        try {
+            await sock.sendMessage(fullJid, { text: message });
+            await replyFn(`✅ Message sent to \`${fullJid}\` successfully.`);
+            logAction(platform, sender, sender, text, "send_pm", { fullJid });
+            return;
+        } catch (err) {
+            return await replyFn(`❌ Failed to send message: ${err.message}`);
+        }
+    }
+
+    // NEW: Auto-Reply Toggle Commands
+    if (cmdBody.startsWith('enable autoreply') && isOwner) {
+        let targetJid = cmdBody.replace('enable autoreply', '').trim();
+        if (!targetJid || targetJid === 'here') targetJid = sender;
+        
+        autoReplyManager.enableAutoReply(targetJid);
+        const feedback = `✅ Auto-Reply ENABLED for: \`${targetJid}\`\n\n_Bot will now respond to everyone in this chat like a human._`;
+        if (sender !== ownerJid) {
+            await privateReply(feedback);
+        } else {
+            await replyFn(feedback);
+        }
+        return;
+    }
+
+    if (cmdBody.startsWith('disable autoreply') && isOwner) {
+        let targetJid = cmdBody.replace('disable autoreply', '').trim();
+        if (!targetJid || targetJid === 'here') targetJid = sender;
+        
+        autoReplyManager.disableAutoReply(targetJid);
+        const feedback = `🛑 Auto-Reply DISABLED for: \`${targetJid}\``;
+        if (sender !== ownerJid) {
+            await privateReply(feedback);
+        } else {
+            await replyFn(feedback);
+        }
+        return;
+    }
+
+    if (cmdBody === 'list autoreply' && isOwner) {
+        const list = autoReplyManager.getEnabledList();
+        if (list.length === 0) return await replyFn("📝 No active auto-replies.");
+        return await replyFn(`📝 *Active Auto-Replies:*\n\n${list.map(id => `- \`${id}\``).join('\n')}`);
+    }
+
+    // NEW: User Manual Command
+    if ((cmdBody === 'manual' || cmdBody === 'help') && isOwner) {
+        try {
+            const manualPath = path.join(__dirname, '../USER_MANUAL.md');
+            if (fs.existsSync(manualPath)) {
+                const content = fs.readFileSync(manualPath, 'utf-8');
+                return await replyFn(content);
+            } else {
+                return await replyFn("❌ User Manual file not found.");
+            }
+        } catch (err) {
+            return await replyFn(`❌ Failed to read manual: ${err.message}`);
+        }
+    }
+
+    // NEW: Get Current Chat ID (Always via Private Reply for Stealth)
+    if (cmdBody === 'id' && isOwner) {
+        await privateReply(`🆔 Current Chat ID: \`${sender}\``);
+        return;
+    }
     if (cmdBody === 'unread' || cmdBody === 'list unread') {
         if (platform !== 'whatsapp') return await replyFn("⚠️ This is only available on WhatsApp.");
         const list = await unreadHandler.getUnreadList();
@@ -151,7 +277,7 @@ async function processMessage(text, sender, platform, replyFn, sock = null, auth
     }
 
     // STRICT OWNER CONTROL
-    if (!isOwner) {
+    if (!isOwner && !isAutoReply) {
         console.log(`[Security] Ignoring command from non-owner: ${sender}`);
         return;
     }

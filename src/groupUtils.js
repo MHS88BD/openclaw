@@ -13,22 +13,27 @@ async function getGroupMembers(sock, groupJid) {
         const metadata = await sock.groupMetadata(groupJid);
         const participants = metadata.participants || [];
         
-        // Clean phone numbers by removing @s.whatsapp.net and potentially LIDs
-        const cleanedNumbers = participants.map(p => {
-            const id = p.id || "";
-            return id.split('@')[0].split(':')[0];
-        });
+        // Filter for real phone numbers (@s.whatsapp.net) and skip LIDs (@lid)
+        const cleanedNumbers = participants
+            .filter(p => p.id && p.id.endsWith('@s.whatsapp.net'))
+            .map(p => p.id.split('@')[0].split(':')[0]);
 
         const total = cleanedNumbers.length;
+        const actualTotal = participants.length;
+        const lidCount = actualTotal - total;
         const limit = 5000;
         const display = cleanedNumbers.slice(0, limit);
 
-        let output = `📋 *Group Members* (Total: ${total})\n`;
-        output += `📍 *Group:* ${metadata.subject}\n\n`;
+        let output = `📋 *Group Members* (Found: ${total} Numbers)\n`;
+        output += `📍 *Group:* ${metadata.subject}\n`;
+        if (lidCount > 0) {
+            output += `🔐 *Hidden:* ${lidCount} IDs (Privacy Protected)\n`;
+        }
+        output += `\n`;
         
         display.forEach((num) => {
-            // Add + if it's a phone number (numeric)
-            const cleanNum = /^\d+$/.test(num) ? `+${num}` : num;
+            const isNumeric = /^\d+$/.test(num);
+            const cleanNum = isNumeric ? `+${num}` : `ID: ${num}`;
             output += `${cleanNum}\n`;
         });
 
@@ -51,4 +56,46 @@ async function getGroupMembers(sock, groupJid) {
     }
 }
 
-module.exports = { getGroupMembers };
+async function broadcastToGroup(sock, groupJid, template, start = 0, count = 10, replyFn) {
+    try {
+        const metadata = await sock.groupMetadata(groupJid);
+        const participants = metadata.participants || [];
+        const targetParticipants = participants.slice(start, start + count);
+
+        await replyFn(`🚀 Starting broadcast to ${targetParticipants.length} members from "${metadata.subject}"... (Delay: 10-25s per msg)`);
+
+        let sentCount = 0;
+        for (const p of targetParticipants) {
+            try {
+                // Get name if available in store/metadata, otherwise generic
+                let name = "there"; 
+                // Note: Real name extraction without a persistent store is tricky, 
+                // but we can try to use info if available. Defaulting for safety.
+                
+                const personalizedMsg = template.replace(/{name}/g, name);
+                
+                // Add a small zero-width random string at the end to make text unique
+                const antiSpamToken = `\u200B` + Math.random().toString(36).substring(7);
+                const finalMsg = personalizedMsg + " " + antiSpamToken;
+
+                await sock.sendMessage(p.id, { text: finalMsg });
+                sentCount++;
+
+                // Anti-Ban Delay: 10-25 seconds random
+                const delay = Math.floor(Math.random() * (25000 - 10000 + 1) + 10000);
+                if (sentCount < targetParticipants.length) {
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            } catch (e) {
+                console.error(`Failed to send to ${p.id}:`, e.message);
+            }
+        }
+
+        await replyFn(`✅ Broadcast finished. Sent to ${sentCount}/${targetParticipants.length} people. Next start index should be: ${start + count}`);
+        return { success: true, sent: sentCount };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+}
+
+module.exports = { getGroupMembers, broadcastToGroup };

@@ -1,32 +1,39 @@
-# OpenClaw AI System - Project Analysis & Updates (2026-04-10)
+# 📝 Project Analysis: OpenClaw AI (WhatsApp & Telegram)
+**Status:** ✅ Stable & Production Ready
+**Last Updated:** 2026-04-10
 
-This document summarizes the improvements and features implemented in the OpenClaw AI system during this session.
+## 🎯 Overview
+OpenClaw AI একটি মাল্টি-চ্যানেল অটোমেশন বট যা হোয়াটসঅ্যাপ এবং টেলিগ্রামের মাধ্যমে কন্ট্রোল করা যায়। এটি মূলত ব্যক্তিগত সহকারী, গ্রুপ ম্যানেজমেন্ট এবং স্মার্ট ব্রডকাস্টিংয়ের জন্য ডিজাইন করা হয়েছে।
 
-## 1. WhatsApp Stability & Connectivity Improvements
-- **Duplicate Listener Resolution:** Removed redundant `messages.upsert` listeners to prevent race conditions and multiple response triggers.
-- **Connection Optimization:** Tuned `keep-alive` and `timeout` settings for better session persistence on VPS environments.
-- **Browser Identity Masking:** Updated browser identity to 'Mac OS' to reduce potential WhatsApp security throttling.
-- **Pairing Code Implementation:** Added support for Linking via Pairing Code (Phone number link) as a robust fallback to QR scanning, successfully resolving "Can't link device" errors.
+## ✨ Accomplished Features (সম্পন্নকৃত কাজসমূহ)
 
-## 2. Security & Owner Recognition
-- **Correct Group Owner Detection:** Fixed a critical bug where owner commands (like `ai members`) were ignored in group chats due to incorrect JID matching. The system now correctly identifies the message author/participant.
-- **Self-Message Handling:** Enabled the bot to recognize and respond to the owner's own messages without requiring the "ai" prefix (Message Yourself support).
+### 1. WhatsApp Connectivity (Baileys v2)
+- **Pairing Code Auth:** QR কোড স্ক্যানিং ঝামেলা এড়াতে ফোন নম্বর ও পেয়ারিং কোড সিস্টেম।
+- **Multi-File State:** সেশন পারসিস্টেন্স নিশ্চিত করা হয়েছে (সার্ভার রিস্টার্ট দিলেও লগআউট হবে না)।
+- **Mac OS Identity:** হোয়াটসঅ্যাপ থেকে ব্যান এড়াতে ব্রাউজার আইডেন্টিটি কাস্টমাইজ করা হয়েছে।
 
-## 3. WhatsApp Group Member Extraction (Exclusive)
-- **Commands Added:**
-  - `ai members <group_jid>`: Generic extraction from any accessible group ID.
-  - `ai members of this group`: Context-aware extraction inside a group.
-  - `ai groups`: Listing all joined groups with their IDs for easy reference.
-- **Excel-Friendly Formatting:**
-  - Prefixed all identified phone numbers with `+`.
-  - Removed indexing and bullet points to allow for seamless copy-pasting into Excel spreadsheets.
-- **Large Group Support:** Increased the extraction limit from 100 to **5,000 members** per group.
-- **ID Lookup:** Added `ai lookup <id>` to verify if a specific JID/LID exists on WhatsApp and check its registration status.
+### 2. Smart Auto-Reply (Human-Like AI)
+- **Context Awareness:** AI (GPT-4o/Gemini) ব্যবহার করে মেসেজ প্রসেসিং।
+- **Toggle Control:** প্রতি চ্যাটের জন্য আলাদাভাবে অটো-রিপ্লাই অন/অফ করার ক্ষমতা।
+- **Human Delay:** ৫-১২ সেকেন্ডের র‍্যান্ডম ডিলে লজিক (Anti-Ban)।
+- **Stealth Mode:** গ্রুপে কমান্ড দিলে মেসেজ অটো-ডিলিট হয় এবং ফিডব্যাক পার্সোনাল ইনবক্সে আসে।
 
-## 4. Platform Integrity
-- **Telegram Bot Stability:** Ensured that all WhatsApp-specific socket and handler changes were isolated and did not affect the existing, fully functional Telegram bot integration.
-- **Modular Design:** Group extraction logic was moved to `src/groupUtils.js` to maintain a clean and maintainable codebase.
+### 3. Group Management Tools
+- **Member Extraction:** গ্রুপ মেম্বারদের নম্বর এক্সেল ফরম্যাটে (`+CountryCode`) এক্সট্র্যাক্ট করা।
+- **Privacy ID Support:** প্রাইভেসি প্রোটেক্টড মেম্বারদের (LID) সাথেও যোগাযোগের ব্যবস্থা।
+- **ID Lookup:** যেকোনো হোয়াটসঅ্যাপ অ্যাকাউন্টের অস্তিত্ব এবং JID চেক করা।
 
----
-**Status:** All features are successfully deployed and operational on the production VPS.
-**GitHub Repository:** `https://github.com/MHS88BD/openclaw`
+### 4. Smart Broadcasting System
+- **Batch Processing:** একসাথে অনেককে মেসেজ না পাঠিয়ে ব্যাচ আকারে (যেমন ১০ জন করে) পাঠানোর সিস্টেম।
+- **Safe Delays:** প্রতিটি মেসেজের মাঝে ১০-২৫ সেকেন্ডের বিরতি।
+- **Uniqueness:** মেসেজ ট্র্যাকিং এড়াতে ইনভিজিবল টোকেন যোগ করা।
+
+### 5. Utilities & Logs
+- **Unread Tracker:** আনপঠিত মেসেজগুলোর লিস্ট দেখা এবং ওখান থেকেই রিপ্লাই দেওয়া।
+- **Voice Transcription:** ভয়েস মেসেজকে টেক্সটে রূপান্তর করে AI এর মাধ্যমে উত্তর দেওয়া।
+- **Centralized Logging:** প্রতিটি অ্যাকশনের বিশদ লগ রাখা।
+
+## 📊 Current Statistics
+- **Platform Support:** WhatsApp, Telegram.
+- **AI Engines:** OpenAI GPT-4o, Google Gemini 1.5 Flash.
+- **Node.js Environment:** Linux/Ubuntu VPS with PM2.
