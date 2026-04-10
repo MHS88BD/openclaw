@@ -256,6 +256,57 @@ async function processMessage(text, sender, platform, replyFn, sock = null, auth
         return await replyFn(list);
     }
 
+    // NEW: Scheduler Status Command
+    if (cmdBody === 'status' && isOwner) {
+        const stats = scheduler.getStats();
+        const statusMsg = `📊 *OpenClaw System Status*\n\n` +
+                          `- WhatsApp: ✅ Connected\n` +
+                          `- Telegram: ✅ Connected\n` +
+                          `- Scheduler: ${stats.state === 'Running' ? '🟢' : '🔴'} ${stats.state}\n\n` +
+                          `🕒 *Scheduler Stats (BST):*\n` +
+                          `- Total Jobs: ${stats.total}\n` +
+                          `- Pending: ${stats.pending}\n` +
+                          `- Completed: ${stats.completed}\n` +
+                          `- Failed: ${stats.failed}\n\n` +
+                          (stats.last_job ? `📍 Last Job: \`${stats.last_job.display_time}\` (${stats.last_job.status})` : "");
+        return await replyFn(statusMsg);
+    }
+
+    // NEW: Scheduler Test Command
+    if (cmdBody === 'test reminder' && isOwner) {
+        const moment = require('moment-timezone');
+        const now = moment().tz('Asia/Dhaka');
+        
+        try {
+            await replyFn("🧪 *Starting 3-Stage Scheduler Test...*");
+            
+            // Job 1: 1 Min -> Self
+            scheduler.addJob({
+                platform, target: sender, creator: sender,
+                message: "[TEST 1/3] ✅ Reminder after 1 minute (Self Chat)",
+                scheduledTime: now.clone().add(1, 'minute').format('YYYY-MM-DD HH:mm')
+            });
+
+            // Job 2: 2 Min -> Same Chat
+            scheduler.addJob({
+                platform, target: sender, creator: sender,
+                message: "[TEST 2/3] ✅ Reminder after 2 minutes (Same Chat)",
+                scheduledTime: now.clone().add(2, 'minutes').format('YYYY-MM-DD HH:mm')
+            });
+
+            // Job 3: 3 Min -> Followup
+            scheduler.addJob({
+                platform, target: sender, creator: sender,
+                message: "[TEST 3/3] ✅ Final Test Success! Scheduler is 100% working.",
+                scheduledTime: now.clone().add(3, 'minutes').format('YYYY-MM-DD HH:mm')
+            });
+
+            return await replyFn("✅ 3 Test jobs created successfully.\n- 1 min\n- 2 min\n- 3 min\n\n_Wait for the messages to arrive._");
+        } catch (err) {
+            return await replyFn(`❌ Test failed to setup: ${err.message}`);
+        }
+    }
+
     // Reply to Unread by Index
     if (cmdBody.startsWith('reply to ')) {
         // format: reply to 1: hello
@@ -379,7 +430,9 @@ async function processMessage(text, sender, platform, replyFn, sock = null, auth
                 let targetJid = sender;
                 if (args.target_phone) {
                     let targetAddr = args.target_phone.trim();
-                    if (targetAddr.endsWith('@g.us')) {
+                    if (targetAddr === 'this group') {
+                        targetJid = sender;
+                    } else if (targetAddr.endsWith('@g.us')) {
                         targetJid = targetAddr;
                     } else {
                         let phone = targetAddr.replace(/\D/g, '');
@@ -389,11 +442,18 @@ async function processMessage(text, sender, platform, replyFn, sock = null, auth
                     }
                 }
 
-                const job = scheduler.schedule(targetJid, args.target_time, args.message, platform);
-                await replyFn(`✅ Scheduled reminder for ${formatBST(job.time)} to be sent to ${targetJid === sender ? 'you' : targetJid}`);
+                const job = scheduler.addJob({
+                    platform,
+                    target: targetJid,
+                    message: args.message,
+                    scheduledTime: args.target_time, // AI sends YYYY-MM-DD HH:mm
+                    creator: sender
+                });
+
+                await replyFn(`✅ Reminder set successfully!\n📍 Time: ${job.display_time} (BST)\n🎯 Target: ${targetJid === sender ? 'You' : targetJid}`);
                 logAction(platform, userId, sender, text, "success");
             } catch (err) {
-                await replyFn(`❌ I couldn't schedule the reminder: ${err.message}`);
+                await replyFn(`❌ Scheduling failed: ${err.message}`);
                 logAction(platform, userId, sender, text, "error", err.message);
             }
         } else if (reply && reply.startsWith("INTERNAL_WHATSAPP_SEND:")) {

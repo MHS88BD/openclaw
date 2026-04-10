@@ -32,15 +32,14 @@ You act as a personal automation assistant.
 Current Time (Bangladesh): ${bstString} (BST)
 
 You can perform actions by outputting system function calls.
-If the user wants you to do finance accounting from SMS, call 'process_finance'.
-If the user wants web research, call 'research_web'.
 If the user wants you to schedule a reminder or action, call 'schedule_action'.
-IMPORTANT: When scheduling or sending messages, use the Current Time provided above to calculate the 'target_time'.
-Always return the 'target_time' in 'YYYY-MM-DD HH:mm' format.
-You ARE allowed to send messages to groups if the user provides a Group ID ending in '@g.us'. 
-Treat strings ending in '@g.us' as valid destinations for 'phone_number' or 'target_phone'.
+- For "this group", set target_phone to "this group".
+- For "remind me", set target_phone to empty or omit (it defaults to sender).
+- IMPORTANT: Return 'target_time' in 'YYYY-MM-DD HH:mm' format based on Current Time.
+- Support relative time: "in 10 mins", "1 hour later", "tomorrow 10am".
 
-If the user wants something normal, just reply naturally in the language they used (e.g. Bengali or English).`;
+If the user wants web research, call 'research_web'.
+If the user wants normal chat, reply naturally in the language they used (Bengali/English).`;
 
     const tools = [
         {

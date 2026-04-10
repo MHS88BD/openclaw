@@ -4,7 +4,7 @@
   "description": "Antigravity AI Agent Communication Bot",
   "main": "bot.js",
   "scripts": {
-    "start": "xvfb-run node bot.js"
+    "start": "node bot.js"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "latest",
@@ -14,6 +14,8 @@
     "dotenv": "^16.4.5",
     "axios": "^1.7.2",
     "qrcode-terminal": "^0.12.0",
-    "@google/generative-ai": "latest"
+    "@google/generative-ai": "latest",
+    "moment": "^2.30.1",
+    "moment-timezone": "^0.5.45"
   }
 }
