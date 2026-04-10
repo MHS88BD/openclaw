@@ -4,155 +4,146 @@ const browserManager = require('./browser');
 const { injectSession, verifySession } = require('./session');
 const JobQueue = require('./queue');
 
-// Smart Input Mapping
-function normalizeCategory(text) {
-    const map = {
-        'lunch': 'food',
-        'dinner': 'food',
-        'breakfast': 'food',
-        'grocery': 'food',
-        'fuel': 'transport',
-        'uber': 'transport',
-        'pathao': 'transport',
-        'bus': 'transport',
-        'bill': 'service',
-        'internet': 'service',
-        'recharge': 'service'
-    };
-    for (const [key, value] of Object.entries(map)) {
-        if (text.toLowerCase().includes(key)) return value;
-    }
-    return text;
-}
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Internal expense execution logic
-async function executeExpense({ amount, category, note }, retries = 2) {
-    const mappedCategory = normalizeCategory(category || note || "");
-    const finalNote = note || "auto entry";
-
+/**
+ * Execute BudgetBakers automation
+ * @param {Object} payload { amount, category, account, note }
+ */
+async function executeExpense({ amount, category, account, note }, retries = 1) {
     const browser = await browserManager.getBrowser();
     let page;
+    
     try {
-        Logger.info("opening_page");
+        Logger.info(`Starting BudgetBakers entry: ${amount} to ${account}`);
         page = await browser.newPage();
-        await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-        await page.setViewport({ width: 1280, height: 800 });
+        await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
+        await page.setViewport({ width: 1280, height: 900 });
 
         await injectSession(page);
 
-        Logger.info("opening_dashboard");
+        // 1. Go to dashboard
         await page.goto('https://web.budgetbakers.com/en-US/dashboard', { waitUntil: 'networkidle2', timeout: 30000 });
         await verifySession(page);
 
-        Logger.info("finding_add_record");
-        // Hybrid selector strategy
-        const recordSelectors = [
-            '[data-testid="add-record-button"]',
-            '[aria-label="Add record"]',
-            '.add-record-btn'
-        ];
+        // 2. Click Add Record
+        Logger.info("Locating Add Record button");
+        const recordBtnSelector = '::-p-xpath(//button[contains(., "Add Record") or contains(., "Record") or contains(., "Expense")])';
+        await page.waitForSelector(recordBtnSelector, { timeout: 10000 });
+        await page.click(recordBtnSelector);
         
-        let rcBtn = null;
-        for(let sel of recordSelectors) {
-             if(await page.$(sel)) { rcBtn = await page.$(sel); break; }
-        }
-        if(!rcBtn) {
-             // Fallback text based
-             const recordBtnXPath = "//button[contains(., 'Add Record') or contains(., 'Record') or contains(., 'Expense')]";
-             await page.waitForXPath(recordBtnXPath, { timeout: 15000 });
-             const btns = await page.$x(recordBtnXPath);
-             if(btns.length > 0) rcBtn = btns[0];
-        }
-        if(!rcBtn) throw new Error("Add Record button not found via any selector");
-        await rcBtn.click();
+        // Wait for modal
+        await delay(2000);
 
-        await page.waitForTimeout(2000);
+        // 3. Input Amount
+        Logger.info("Entering amount");
+        const amountSelector = 'input[placeholder="0"]';
+        await page.waitForSelector(amountSelector, { timeout: 5000 });
+        await page.click(amountSelector);
+        
+        // Clear field
+        await page.keyboard.down('Control');
+        await page.keyboard.press('A');
+        await page.keyboard.up('Control');
+        await page.keyboard.press('Backspace');
+        
+        await page.type(amountSelector, String(amount), { delay: 50 });
 
-        Logger.info(`inputting_amount_${amount}`);
-        const amountSelectors = ['[data-testid="amount-input"]', 'input[type="number"]', 'input[placeholder*="0"]', 'input[name="amount"]'];
-        let amountFilled = false;
-        for (const sel of amountSelectors) {
-            if (await page.$(sel)) {
-                await page.click(sel);
-                await page.keyboard.down('Control');
-                await page.keyboard.press('A');
-                await page.keyboard.up('Control');
-                await page.keyboard.press('Backspace');
-                await page.type(sel, String(amount), { delay: 30 });
-                amountFilled = true;
-                break;
+        // 4. Select Account
+        Logger.info(`Selecting account: ${account}`);
+        const accountBox = await page.$('div[role="button"][class*="account"]');
+        if (accountBox) {
+            await accountBox.click();
+            await delay(1000);
+            
+            const accountOptionSelector = `::-p-xpath(//div[contains(text(), "${account}") or contains(., "${account}")])`;
+            try {
+                await page.waitForSelector(accountOptionSelector, { timeout: 3000 });
+                await page.click(accountOptionSelector);
+            } catch (e) {
+                Logger.error(`Account "${account}" not found.`);
+                throw new Error(`Account "${account}" আপনার বাজেট-বেকারস লিস্টে খুঁজে পাওয়া যায়নি।`);
             }
         }
-        if (!amountFilled) throw new Error("Amount input field not found");
 
-        Logger.info(`inputting_note_${mappedCategory}_${finalNote}`);
-        const noteSelectors = ['[data-testid="note-input"]', 'input[name="note"]', 'textarea', 'input[placeholder*="note" i]'];
-        for (const sel of noteSelectors) {
-            if (await page.$(sel)) {
-                await page.click(sel);
-                await page.type(sel, String(finalNote), { delay: 30 });
-                break;
+        await delay(1000);
+
+        // 5. Select Category
+        Logger.info(`Selecting category: ${category}`);
+        const categoryBox = await page.$('div[role="button"][class*="category"]');
+        if (categoryBox) {
+            await categoryBox.click();
+            await delay(1000);
+            
+            const searchInput = await page.$('input[placeholder*="Search"]');
+            if (searchInput) {
+                await searchInput.type(category, { delay: 50 });
+                await delay(1000);
+            }
+            
+            const catOptionSelector = `::-p-xpath(//div[contains(text(), "${category}") or contains(., "${category}")])`;
+            try {
+                await page.waitForSelector(catOptionSelector, { timeout: 3000 });
+                await page.click(catOptionSelector);
+            } catch (e) {
+                Logger.error(`Category "${category}" not found.`);
+                throw new Error(`Category "${category}" আপনার বাজেট-বেকারস লিস্টে খুঁজে পাওয়া যায়নি।`);
             }
         }
-        
-        Logger.info("saving_expense");
-        const submitXPath = "//button[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'save') or contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'add')]";
-        await page.waitForTimeout(1000);
-        const saveBtns = await page.$x(submitXPath);
+
+        await delay(1000);
+
+        // 6. Input Note
+        Logger.info("Adding note");
+        const noteSelector = 'textarea[name="note"], input[name="note"]';
+        const noteInput = await page.$(noteSelector);
+        if (noteInput) {
+            await noteInput.type(note, { delay: 20 });
+        }
+
+        // 7. Save
+        Logger.info("Clicking Save");
+        const saveBtnSelector = '::-p-xpath(//button[contains(., "Save") or contains(., "Add")])';
+        const saveBtns = await page.$$(saveBtnSelector);
         if (saveBtns.length > 0) {
-            await saveBtns[saveBtns.length - 1].click(); 
+            await saveBtns[saveBtns.length - 1].click();
         } else {
             throw new Error("Save button not found");
         }
 
-        Logger.info("verifying_success");
-        try {
-            await page.waitForTimeout(3000);
-            const isModalStillOpen = await page.$x(submitXPath);
-            if (isModalStillOpen.length > 0) {
-                 await page.waitForTimeout(2000);
-                 const recheck = await page.$x(submitXPath);
-                 if (recheck.length > 0) {
-                     throw new Error("Form did not close. Submission might have failed.");
-                 }
-            }
-        } catch (verr) {
-            throw new Error("Success verification failed: " + verr.message);
+        // 8. Verification
+        await delay(4000);
+        const modalCheck = await page.$$(saveBtnSelector);
+        if (modalCheck.length > 0) {
+            throw new Error("Modal didn't close, entry might have failed.");
         }
-        
-        Logger.success("expense_added");
-        await page.screenshot({ path: path.join(__dirname, 'success.png'), fullPage: true });
 
-        await page.close(); // Only close the page, not the browser to pool it!
-        return `✅ Expense added: ${amount}`;
+        Logger.success("Expense Entry Successful");
+        await page.close();
+        return `✅ Entry Successful!\nAmount: ${amount}\nCategory: ${category}\nAccount: ${account}`;
 
-    } catch (error) {
-        if (page && !page.isClosed()) {
+    } catch (err) {
+        Logger.error("Automation Failure", err.message);
+        if (page) {
             try {
-                await page.screenshot({ path: path.join(__dirname, 'error.png'), fullPage: true });
+                await page.screenshot({ path: path.join(__dirname, 'error_expense.png') });
                 await page.close();
             } catch(e) {}
         }
-        
-        Logger.error("expense_execution", error.message);
-        
-        if (retries > 0 && !error.message.includes('Session expired') && !error.message.includes('Session error')) {
-            Logger.info(`retrying_left_${retries}`);
-            return await executeExpense({ amount, category, note }, retries - 1);
-        } else {
-            throw new Error(error.message); // throw inside queue so it tracks failures
+        if (retries > 0) {
+            Logger.info("Retrying automation...");
+            return await executeExpense({ amount, category, account, note }, retries - 1);
         }
+        throw err;
     }
 }
 
-// Queue wrapper
 async function addExpense(payload) {
     try {
-        Logger.info(`queueing_expense_${payload.amount}`);
         const result = await JobQueue.add('budget-bakers', () => executeExpense(payload));
         return result;
-    } catch(err) {
-        return `⚠️ Failed: ${err.message}`;
+    } catch (err) {
+        return `⚠️ Error: ${err.message}`;
     }
 }
 

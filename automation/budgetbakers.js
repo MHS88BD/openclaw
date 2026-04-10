@@ -78,15 +78,15 @@ async function addExpense({ amount, category, note }, retries = 2) {
         console.log(`[STEP] submitting expense`);
         
         const recordBtnXPath = "//button[contains(., 'Add Record') or contains(., 'Record') or contains(., 'Expense')]";
-        await page.waitForXPath(recordBtnXPath, { timeout: 15000 });
-        const recordBtns = await page.$x(recordBtnXPath);
+        await page.waitForSelector("::-p-xpath(" + recordBtnXPath + ")", { timeout: 15000 });
+        const recordBtns = await page.$$("::-p-xpath(" + recordBtnXPath + ")");
         if (recordBtns.length > 0) {
             await recordBtns[0].click();
         } else {
              throw new Error("Add Record button not found");
         }
 
-        await page.waitForTimeout(2000); 
+        await new Promise(r => setTimeout(r, 2000)); 
 
         console.log(`[STEP] inputting amount: ${amount}`);
         const amountSelectors = ['input[type="number"]', 'input[placeholder*="0"]', 'input[name="amount"]'];
@@ -117,8 +117,8 @@ async function addExpense({ amount, category, note }, retries = 2) {
         
         console.log(`[STEP] clicking save button`);
         const submitXPath = "//button[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'save') or contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'add')]";
-        await page.waitForTimeout(1000);
-        const saveBtns = await page.$x(submitXPath);
+        await new Promise(r => setTimeout(r, 1000));
+        const saveBtns = await page.$$("::-p-xpath(" + submitXPath + ")");
         if (saveBtns.length > 0) {
             await saveBtns[saveBtns.length - 1].click(); 
         } else {
@@ -129,12 +129,12 @@ async function addExpense({ amount, category, note }, retries = 2) {
         // Wait for modal to disappear or success text
         try {
             // Looking for a typical toast/notification or simply the modal closing
-            await page.waitForTimeout(3000);
-            const isModalStillOpen = await page.$x(submitXPath);
+            await new Promise(r => setTimeout(r, 3000));
+            const isModalStillOpen = await page.$$("::-p-xpath(" + submitXPath + ")");
             if (isModalStillOpen.length > 0) {
                  // Might still be open due to network delay, wait a bit more
-                 await page.waitForTimeout(2000);
-                 const recheck = await page.$x(submitXPath);
+                 await new Promise(r => setTimeout(r, 2000));
+                 const recheck = await page.$$("::-p-xpath(" + submitXPath + ")");
                  if (recheck.length > 0) {
                      throw new Error("Form did not close. Submission might have failed.");
                  }

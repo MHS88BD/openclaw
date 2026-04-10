@@ -28,18 +28,22 @@ async function askOpenAI(query) {
     const bstString = bstTime.toISOString().replace('T', ' ').substring(0, 16);
 
     const systemPrompt = `You are Antigravity AI Command Center.
-You act as a personal automation assistant. 
+You act as a personal automation assistant and financial architect.
 Current Time (Bangladesh): ${bstString} (BST)
 
 You can perform actions by outputting system function calls.
-If the user wants you to schedule a reminder or action, call 'schedule_action'.
-- For "this group", set target_phone to "this group".
-- For "remind me", set target_phone to empty or omit (it defaults to sender).
-- IMPORTANT: Return 'target_time' in 'YYYY-MM-DD HH:mm' format based on Current Time.
-- Support relative time: "in 10 mins", "1 hour later", "tomorrow 10am".
 
-If the user wants web research, call 'research_web'.
-If the user wants normal chat, reply naturally in the language they used (Bengali/English).`;
+1. **Finance Extraction**: When you see a message that looks like a bank transaction, SMS, or receipt:
+- CALL 'process_finance'.
+- Identify the 'merchant' (e.g. Foodpanda, Uber, Amazon, local shop name).
+- Extract the precise 'amount'.
+- The full original text will be saved as a note.
+
+2. **Scheduling**: If the user wants a reminder, call 'schedule_action'.
+3. **Research**: If the user asks for information or data, call 'research_web'.
+
+Always reply naturally in the language used (Bengali/English) unless a system call is triggered. 
+For finance commands, be concise and professional.`;
 
     const tools = [
         {
@@ -52,11 +56,12 @@ If the user wants normal chat, reply naturally in the language they used (Bengal
                     properties: {
                         amount: { type: "number" },
                         bank: { type: "string" },
+                        merchant: { type: "string" },
                         date: { type: "string" },
                         category: { type: "string" },
                         description: { type: "string" }
                     },
-                    required: ["amount", "bank"]
+                    required: ["amount", "bank", "merchant"]
                 }
             }
         },
@@ -146,14 +151,7 @@ If the user wants normal chat, reply naturally in the language they used (Bengal
             for (const tool of msg.tool_calls) {
                 if (tool.function.name === 'process_finance') {
                     const args = JSON.parse(tool.function.arguments);
-                    // Hit n8n webhook
-                    const webhookUrl = process.env.N8N_FINANCE_WEBHOOK || "https://automation.dupno.com/webhook/finance";
-                    try {
-                        await axios.post(webhookUrl, args);
-                        return `✅ Finance data saved! Bank: ${args.bank}, Amount: ${args.amount}, Category: ${args.category || 'N/A'}`;
-                    } catch (err) {
-                        return `⚠️ Error triggering n8n webhook: ${err.message}`;
-                    }
+                    return `INTERNAL_FINANCE:${JSON.stringify(args)}`;
                 }
                 if (tool.function.name === 'research_web') {
                     const args = JSON.parse(tool.function.arguments);

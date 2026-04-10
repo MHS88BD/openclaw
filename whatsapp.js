@@ -84,8 +84,11 @@ async function startBot() {
         }
         if (connection === 'close') {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
+            const errorMsg = lastDisconnect?.error?.message;
+            console.log(`[WA] Connection Closed. Status Code: ${statusCode}, Error: ${errorMsg}`);
             if (statusCode !== DisconnectReason.loggedOut && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
                 reconnectAttempts++;
+                console.log(`[WA] Reconnecting (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
                 setTimeout(startBot, 5000);
             }
         }
@@ -101,7 +104,7 @@ async function startBot() {
             const isFromMe = msg.key.fromMe;
             const msgId = msg.key.id;
             const ownerRaw = (process.env.OWNER_NUMBER || "").trim();
-            const ownerLidRaw = '107168208580730@lid';
+            const ownerLidRaw = (process.env.OWNER_LID || "").trim();
 
             const authorId = getNumericalId(participant);
             const ownerId = getNumericalId(ownerRaw);
@@ -170,7 +173,7 @@ async function startBot() {
     });
 }
 
-module.exports = { connectToWhatsApp: startBot };
+module.exports = { connectToWhatsApp: startBot, getSock: () => sock };
 
 if (require.main === module) {
     startBot();
