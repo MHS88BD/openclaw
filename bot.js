@@ -56,7 +56,7 @@ async function startSystem() {
     const PORT = process.env.WH_PORT || 3000;
     app.post('/api/expense', async (req, res) => {
         const { message, source, sender } = req.body;
-        if (!message) return res.status(400).send({ error: "Message is required" });
+        if (!message) return res.status(400).send({ status: "error", message: "Message is required" });
 
         console.log(`[Webhook] Received from ${source || 'api'}: ${message}`);
 
@@ -67,31 +67,33 @@ async function startSystem() {
         const replyFn = async (text) => {
             console.log(`[Webhook Reply] ${text}`);
             if (sock && ownerJid) {
-                await sock.sendMessage(ownerJid, { text: 'ðŸ“§ [NOTIFICATION]\n' + text }).catch(e => {
+                await sock.sendMessage(ownerJid, { text: '📧 [NOTIFICATION]\n' + text }).catch(e => {
                     console.error("Webhook WhatsApp Send Error:", e.message);
                 });
             }
         };
 
         try {
-            await processMessage(message, sender || 'n8n_webhook', source || 'sms', replyFn, sock);
-            res.send({ status: "processing" });
+            const result = await processMessage(message, sender || 'n8n_webhook', source || 'sms', replyFn, sock);
+            
+            if (result && result.status === 'success') {
+                res.send({ status: "success", message: "entry created" });
+            } else if (result && result.status === 'pending') {
+                res.send({ status: "success", message: "processing - awaiting user confirmation" });
+            } else {
+                res.send({ status: "success", message: "message processed" });
+            }
         } catch (err) {
-            res.status(500).send({ error: err.message });
+            console.error("Webhook Processing Error:", err);
+            res.status(500).send({ status: "error", message: err.message });
         }
     });
 
     try {
-        const server = app.listen(PORT, () => {
-            console.log(`🚀 Webhook Server running on port ${PORT}`);
-        });
-
-        server.on('error', (e) => {
-            if (e.code === 'EADDRINUSE') {
-                console.warn(`⚠️ Port ${PORT} is busy. Webhook server failed to start, but bot is running.`);
-            } else {
-                console.error("Webhook Server Error:", e);
-            }
+        const HOST = '0.0.0.0';
+        app.listen(PORT, HOST, () => {
+            console.log(`🚀 Webhook Server running on http://${HOST}:${PORT}`);
+            console.log(`🔗 API Endpoint: http://${process.env.SSH_HOST || 'localhost'}:${PORT}/api/expense`);
         });
     } catch (err) {
         console.error("Failed to start Express server:", err.message);

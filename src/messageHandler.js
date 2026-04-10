@@ -123,11 +123,24 @@ async function processMessage(text, sender, platform, replyFn, sock = null, auth
             let autoCategoryId = merchantMemory.getCategoryId(data.merchant);
 
             if (autoAccountId && autoCategoryId) {
-                PENDING_EXPENSES[userId] = { state: 'awaiting_confirm', amount: data.amount, merchant: data.merchant, categoryId: autoCategoryId, accountId: autoAccountId, fullSms: text };
-                return await replyFn(`📊 *Smart Expense Preview*\n💰 *Amount:* ${data.amount} BDT\n🏷️ *Merchant:* ${data.merchant}\n\n*Confirm* লিখুন।`);
+                console.log(`🤖 Auto-confirming expense: ${data.amount} BDT for ${data.merchant}`);
+                try {
+                    await budgetApi.createRecord({ 
+                        amount: data.amount, 
+                        categoryId: autoCategoryId, 
+                        accountId: autoAccountId, 
+                        note: text 
+                    });
+                    await replyFn(`✅ *Auto-Entry Completed!*\n💰 *Amount:* ${data.amount} BDT\n🏷️ *Merchant:* ${data.merchant}`);
+                    return { status: "success", message: "entry created", entryCreated: true };
+                } catch (err) {
+                    await replyFn(`❌ *Auto-Entry Failed:* ${err.message}`);
+                    return { status: "error", message: err.message };
+                }
             } else {
                 PENDING_EXPENSES[userId] = { state: autoCategoryId ? 'awaiting_account' : 'awaiting_category', amount: data.amount, merchant: data.merchant, categoryId: autoCategoryId, accountId: autoAccountId, fullSms: text };
-                return await replyFn(!autoCategoryId ? `💰 *Expense Detected:* ${data.amount} BDT\n📁 *Category ID কি হবে?*` : `💰 *Expense Detected:* ${data.amount} BDT\n🏦 *Account ID কি হবে?*`);
+                await replyFn(!autoCategoryId ? `💰 *Expense Detected:* ${data.amount} BDT\n📁 *Category ID কি হবে?*` : `💰 *Expense Detected:* ${data.amount} BDT\n🏦 *Account ID কি হবে?*`);
+                return { status: "pending", message: "awaiting user input" };
             }
         } 
         // RESTORE SCHEDULING LOGIC
