@@ -33,27 +33,12 @@ telegramBot.on('text', async (ctx) => {
 
 // Start Bots
 async function startSystem() {
-    console.log("Starting Multi-Channel AI System...");
+    console.log("🚀 Starting Multi-Channel AI System...");
     
-    // Start WhatsApp
-    try {
-        await connectToWhatsApp();
-    } catch (error) {
-        console.error("Error starting WhatsApp bot. System will continue to run with Telegram only:", error);
-    }
-
-    // Start Telegram
-    try {
-        await telegramBot.launch();
-        console.log('Telegram Bot is active!');
-        const scheduler = require('./src/scheduler');
-        scheduler.startWorker(null, telegramBot);
-    } catch (error) {
-        console.error("Error starting Telegram bot:", error);
-    }
-
-    // 3. Start Webhook Server (for n8n/SMS)
+    // 1. Start Webhook Server FIRST (for n8n/SMS)
     const PORT = process.env.WH_PORT || 3000;
+    const HOST = '0.0.0.0';
+
     app.post('/api/expense', async (req, res) => {
         const { message, source, sender } = req.body;
         if (!message) return res.status(400).send({ status: "error", message: "Message is required" });
@@ -90,13 +75,30 @@ async function startSystem() {
     });
 
     try {
-        const HOST = '0.0.0.0';
         app.listen(PORT, HOST, () => {
-            console.log(`🚀 Webhook Server running on http://${HOST}:${PORT}`);
+            console.log(`✅ Webhook Server running on http://${HOST}:${PORT}`);
             console.log(`🔗 API Endpoint: http://${process.env.SSH_HOST || 'localhost'}:${PORT}/api/expense`);
         });
     } catch (err) {
-        console.error("Failed to start Express server:", err.message);
+        console.error("❌ Failed to start Express server:", err.message);
+    }
+
+    // 2. Start WhatsApp
+    try {
+        await connectToWhatsApp();
+    } catch (error) {
+        console.error("❌ Error starting WhatsApp bot:", error);
+    }
+
+    // 3. Start Telegram
+    try {
+        await telegramBot.launch().then(() => {
+            console.log('✅ Telegram Bot is active!');
+        });
+        const scheduler = require('./src/scheduler');
+        scheduler.startWorker(null, telegramBot);
+    } catch (error) {
+        console.error("❌ Error starting Telegram bot:", error);
     }
 }
 
