@@ -67,7 +67,34 @@ async function processMessage(text, sender, platform, replyFn, sock = null, auth
             const keyword = match[1];
             const accountId = match[2];
             accountMemory.setMapping(keyword, accountId);
-            return await replyFn(`✅ *Rule Saved!*\nKeyword: \`${keyword}\` maps to Account ID: \`${accountId}\``);
+            return await replyFn(`✅ *Account Rule Saved!*\nKeyword: \`${keyword}\` maps to Account ID: \`${accountId}\``);
+        }
+    }
+
+    if (lowerBody.startsWith('ai merchant rule ') && isOwner) {
+        const match = text.match(/ai merchant rule "([^"]+)"\s*=\s*"([^"]+)"/i);
+        if (match) {
+            const merchant = match[1];
+            const categoryId = match[2];
+            merchantMemory.setMapping(merchant, categoryId);
+            return await replyFn(`✅ *Merchant Rule Saved!*\nMerchant: \`${merchant}\` maps to Category ID: \`${categoryId}\``);
+        }
+    }
+
+    if (lowerBody === 'ai list budget' && isOwner) {
+        try {
+            const accounts = await budgetApi.getAccounts();
+            const categories = await budgetApi.getCategories();
+            
+            let msg = "🏦 *Accounts:*\n";
+            accounts.forEach(a => msg += `• ${a.name}: \`${a.id}\`\n`);
+            
+            msg += "\n📁 *Top Categories:*\n";
+            categories.slice(0, 15).forEach(c => msg += `• ${c.name}: \`${c.id}\`\n`);
+            
+            return await replyFn(msg);
+        } catch (e) {
+            return await replyFn(`❌ Error fetching list: ${e.message}`);
         }
     }
 
